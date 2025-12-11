@@ -12,9 +12,18 @@ TOKEN = '8287697686:AAGrq9d1R3YPW7Sag48jFA4T2iD7NZTzyJA'
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
-# --- BOT RULE SET (UPDATED) ---
+You are updating the core logic of your Telegram Bot's client filtering function (check_client_data) and the rule sets.
+
+I will incorporate the new rule regarding the disallowed professions into your code snippet, specifically within the check_client_data function and the configuration section.
+
+🐍 Updated Configuration and Helper Function
+Here is the code, with the new NOT_ALLOWED_JOBS set added, and the check_client_data function modified to enforce this new rule (which replaces the original Job check, but keeps the check for missing job data).
+
+Python
+
+# --- BOT RULE SET (UPDATED WITH DISALLOWED JOBS) ---
 NOT_DEVELOP_COUNTRIES = {
-    'AMERICA', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM'
+    'AMERICA', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'US', 'CAN', 'UK', 'EU'
 }
 MIN_AGE = 25
 MAX_AGE = 45
@@ -24,53 +33,66 @@ MAX_HOURS = 12
 # Salary is REMOVED from REQUIRED_FIELDS
 REQUIRED_FIELDS = ['Location', 'Age', 'Job', 'Working Hours', 'Client Account Link']
 
+# NEW RULE SET: Jobs that are not allowed to 'develop'
+NOT_ALLOWED_JOBS = {
+    'CONTENT CREATOR', 'COMPUTER SCIENTIST', 'SOFTWARE ENGINEER', 
+    'WEB DEVELOPER', 'DEVELOPER', 'IT COMPANY', 'YOUTUBER', 
+    'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE', 
+    'POLICE', 'SOLDIER'
+}
 
 # --- HELPER FUNCTION: PARSE AND CHECK (UPDATED) ---
 
 def check_client_data(report_text):
-    """Parses the client report text and checks against the defined rules."""
+    """Parses the client report text and checks against the defined rules, including disallowed jobs."""
     data = {}
     lines = report_text.strip().split('\n')
     
+    # Standardized parsing
     for line in lines:
         if '-' in line:
             key, value = line.split('-', 1)
-            data[key.strip()] = value.strip()
+            # Use .title() for consistent key access in the dictionary
+            data[key.strip().title()] = value.strip()
 
     errors = []
 
     # 1. Check for missing required fields (Excludes Salary)
     for field in REQUIRED_FIELDS:
+        # Use .get(field) on the standardized (Title-cased) keys
         if not data.get(field) or data.get(field) == '':
             errors.append(f"❌ Missing required field: {field}")
 
-    if errors:
+    if errors and len(errors) == len(REQUIRED_FIELDS):
         return "Can't Cut", '\n'.join(errors)
 
     # 2. Check Location
     location = data.get('Location', '').upper()
+    # Note: Using .get('Location', '') on the Title-cased key.
     if location in NOT_DEVELOP_COUNTRIES:
         errors.append("❌ Fails Location rule (Not Develop Country).")
 
     # 3. Check Age
     try:
-        age = int(data.get('Age'))
+        age_str = data.get('Age')
+        if not age_str:
+            raise ValueError("Age field is empty.")
+        age = int(age_str)
         if not (MIN_AGE <= age <= MAX_AGE):
             errors.append(f"❌ Fails Age rule (Must be between {MIN_AGE}-{MAX_AGE}).")
     except (ValueError, TypeError):
         errors.append("❌ Invalid or missing Age value.")
 
-    # 4. Check Salary (UPDATED LOGIC: Not required, but if provided, must be >= 300)
+    # 4. Check Salary 
     salary_str = data.get('Salary', '').strip()
     
     if not salary_str or salary_str.lower() in ['none', 'n/a', 'not telling', 'unknown']:
-        # If salary is missing or noted as 'Not Telling', it is allowed (Pass)
         pass 
     else:
-        # If salary is provided, it must meet the minimum requirement
         try:
-            salary = float(salary_str.replace('$', '').replace(',', ''))
-            # Rule: Fails if less than 300
+            # Added more robust cleaning for symbols
+            salary = float(salary_str.replace('$', '').replace('€', '').replace('£', '').replace(',', ''))
+            
             if salary < MIN_SALARY:
                 errors.append(f"❌ Fails Salary rule (Must be ${MIN_SALARY} or more).")
         except (ValueError, TypeError):
@@ -84,17 +106,32 @@ def check_client_data(report_text):
         pass 
     else:
         try:
-            working_hours = float(working_hours_str)
+            # Use split(' ')[0] to handle inputs like "8 hours"
+            working_hours = float(working_hours_str.split(' ')[0])
             if working_hours > MAX_HOURS:
                 errors.append(f"❌ Fails Working Hours rule (Must be less than or equal to {MAX_HOURS} hours, or 'Not Fixed').")
         except (ValueError, TypeError):
             errors.append("❌ Invalid Working Hours value. Must be a number (<=12) or 'Not Fixed/Flexible'.")
 
 
-    # 6. Check Job
-    job = data.get('Job')
-    if not job or job.lower() == 'none' or job.lower() == 'n/a':
+    # 6. Check Job (UPDATED WITH DISALLOWANCE RULE)
+    job_input = data.get('Job', '').upper()
+    
+    # A. Check if the job field is missing or generic
+    if not job_input or job_input in ['NONE', 'N/A', 'UNKNOWN']:
         errors.append("❌ Fails Job rule (Job must be specified).")
+    else:
+        # B. Check if the job is on the disallowed list
+        is_disallowed = False
+        for disallowed_job in NOT_ALLOWED_JOBS:
+            # Check if the disallowed job phrase is contained within the input job description
+            if disallowed_job in job_input:
+                is_disallowed = True
+                break
+        
+        if is_disallowed:
+            errors.append("❌ Fails Job rule (Profession is not allowed to develop, or is a related position).")
+
 
     # 7. Check Client Account Link
     link = data.get('Client Account Link')
@@ -172,6 +209,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
