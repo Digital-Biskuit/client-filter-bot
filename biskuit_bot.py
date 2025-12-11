@@ -13,17 +13,16 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 
 # --- BOT RULE SET (UPDATED) ---
-# Countries considered 'Not Develop' based on your rule
 NOT_DEVELOP_COUNTRIES = {
     'AMERICA', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM'
 }
 MIN_AGE = 25
 MAX_AGE = 45
-MIN_SALARY = 300
+MIN_SALARY = 300 # Must be 300 or more
 MIN_HOURS = 0
-MAX_HOURS = 12 # Maximum allowed working hours
-# 'Working Hours' has been added to the required fields
-REQUIRED_FIELDS = ['Location', 'Age', 'Job', 'Salary', 'Working Hours', 'Client Account Link']
+MAX_HOURS = 12
+# Salary is REMOVED from REQUIRED_FIELDS
+REQUIRED_FIELDS = ['Location', 'Age', 'Job', 'Working Hours', 'Client Account Link']
 
 
 # --- HELPER FUNCTION: PARSE AND CHECK (UPDATED) ---
@@ -40,16 +39,15 @@ def check_client_data(report_text):
 
     errors = []
 
-    # 1. Check for missing required fields (Now includes 'Working Hours')
+    # 1. Check for missing required fields (Excludes Salary)
     for field in REQUIRED_FIELDS:
         if not data.get(field) or data.get(field) == '':
             errors.append(f"❌ Missing required field: {field}")
 
-    # Stop here if essential fields are missing
     if errors:
         return "Can't Cut", '\n'.join(errors)
 
-    # 2. Check Location (Develop/Not Develop)
+    # 2. Check Location
     location = data.get('Location', '').upper()
     if location in NOT_DEVELOP_COUNTRIES:
         errors.append("❌ Fails Location rule (Not Develop Country).")
@@ -62,29 +60,34 @@ def check_client_data(report_text):
     except (ValueError, TypeError):
         errors.append("❌ Invalid or missing Age value.")
 
-    # 4. Check Salary
-    try:
-        salary = float(data.get('Salary').replace('$', '').replace(',', ''))
-        if salary <= MIN_SALARY:
-            errors.append(f"❌ Fails Salary rule (Must be more than ${MIN_SALARY}).")
-    except (ValueError, TypeError):
-        errors.append("❌ Invalid or missing Salary value.")
+    # 4. Check Salary (UPDATED LOGIC: Not required, but if provided, must be >= 300)
+    salary_str = data.get('Salary', '').strip()
+    
+    if not salary_str or salary_str.lower() in ['none', 'n/a', 'not telling', 'unknown']:
+        # If salary is missing or noted as 'Not Telling', it is allowed (Pass)
+        pass 
+    else:
+        # If salary is provided, it must meet the minimum requirement
+        try:
+            salary = float(salary_str.replace('$', '').replace(',', ''))
+            # Rule: Fails if less than 300
+            if salary < MIN_SALARY:
+                errors.append(f"❌ Fails Salary rule (Must be ${MIN_SALARY} or more).")
+        except (ValueError, TypeError):
+            errors.append("❌ Invalid Salary value. Must be a number (>=300) or left empty/Not Telling.")
 
-    # 5. Check Working Hours (NEW RULE IMPLEMENTATION)
+
+    # 5. Check Working Hours
     working_hours_str = data.get('Working Hours', '').strip().lower()
     
-    # Rule: Pass if hours are flexible/not fixed
     if 'not fixed' in working_hours_str or 'flexible' in working_hours_str:
         pass 
     else:
-        # Try to parse as a number
         try:
             working_hours = float(working_hours_str)
-            # Rule: Fails if more than 12 hours
             if working_hours > MAX_HOURS:
                 errors.append(f"❌ Fails Working Hours rule (Must be less than or equal to {MAX_HOURS} hours, or 'Not Fixed').")
         except (ValueError, TypeError):
-            # Fails if it's non-numeric text that isn't 'not fixed' or 'flexible'
             errors.append("❌ Invalid Working Hours value. Must be a number (<=12) or 'Not Fixed/Flexible'.")
 
 
@@ -169,5 +172,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
