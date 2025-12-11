@@ -1,5 +1,6 @@
-from telegram.ext import Application, CommandHandler, MessageHandler
-from telegram.ext import filters # Filters is now filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram import Update
+import logging
 
 # --- CONFIGURATION ---
 # Replace 'YOUR_BOT_TOKEN_HERE' with the token you copied from BotFather
@@ -86,7 +87,6 @@ def check_client_data(report_text):
     else:
         # One or more rules failed
         result = "Can't Cut"
-        # FIX: Move the newline outside the expression and use it to join the list
         error_list_text = '- ' + '\n- '.join(errors)
         remark = f"⚠️ Reasons for 'Can't Cut':\n{error_list_text}"
 
@@ -95,7 +95,7 @@ def check_client_data(report_text):
 
 # --- HANDLER FUNCTION (What the Bot does on receiving text) ---
 
-def client_filter_handler(update, context):
+def client_filter_handler(update: Update, context):
     """
     The main handler that processes the user's client report text.
     """
@@ -119,7 +119,7 @@ def client_filter_handler(update, context):
 
 # --- STANDARD COMMAND HANDLERS ---
 
-def start(update, context):
+def start(update: Update, context):
     """Sends a greeting when the user issues the /start command."""
     update.message.reply_text(
         'Hello! Send me the client report using your specified format, and I will filter it for you. '
@@ -127,33 +127,33 @@ def start(update, context):
     )
 
 
-def help_command(update, context):
+def help_command(update: Update, context):
     """Sends a help message."""
     update.message.reply_text(
         'Send me a client report in the specified format to check if they "Passed" or "Can\'t Cut."')
 
 
-# --- MAIN BOT EXECUTION ---
+# --- MAIN BOT EXECUTION (Corrected for python-telegram-bot v20+) ---
 
 def main():
-    """Start the bot."""
-    # Create the Updater and pass it your bot's token.
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
-
+    """Start the bot using the modern Application-based structure."""
+    
+    # 1. Create the Application (replaces Updater)
+    application = Application.builder().token(TOKEN).build()
+    
     # Register handlers
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
 
     # This handler processes the report text
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, client_filter_handler))
+    # Note: Filters.text is now filters.TEXT (lowercase module, uppercase filter)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_filter_handler))
 
-    # Start the Bot
-    updater.start_polling()
+    # Start the Bot (using run_polling, which replaces start_polling/idle)
     print("Client Filter Bot is running...")
-    updater.idle()
+    # allowed_updates=Update.ALL_TYPES is often required for modern hosting
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == '__main__':
-
     main()
