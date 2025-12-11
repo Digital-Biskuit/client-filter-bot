@@ -1,30 +1,34 @@
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram import Update
 import logging
-import os  # Included for best practice token handling
+import os
+import sys
 
-# --- CONFIGURATION ---
-# IMPORTANT: It is safer to load the token from an Environment Variable on the server.
-# For now, we use the token directly for testing.
-TOKEN = '8287697686:AAGrq9d1R3YPW7Sag48jFA4T2iD7NZTzyJA'
+# --- CONFIGURATION & SECURITY ---
 
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# --- BOT RULE SET (UPDATED WITH DISALLOWED JOBS) ---
+# Load the token (using the direct token from your provided code for continuity)
+TOKEN = '8287697686:AAGrq9d1R3YPW7Sag48jFA4T2iD7NZTzyJA'
+
+# --- BOT STATE ---
+# Global state variable managed by the /pause and /unpause commands
+# We use the bot's context.bot_data dictionary for persistent state during runtime
+BOT_STATE_KEY = 'is_active' 
+
+# --- BOT RULE SET ---
 NOT_DEVELOP_COUNTRIES = {
-    'AMERICA', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'US', 'CAN', 'UK', 'EU'
+    'AMERICA', 'Canada', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'US', 'CAN', 'UK', 'EU'
 }
 MIN_AGE = 25
 MAX_AGE = 45
 MIN_SALARY = 300  # Must be 300 or more
-MIN_HOURS = 0
 MAX_HOURS = 12
-# Salary is REMOVED from REQUIRED_FIELDS
 REQUIRED_FIELDS = ['Location', 'Age', 'Job', 'Working Hours', 'Client Account Link']
 
-# NEW RULE SET: Jobs that are not allowed to 'develop'
 NOT_ALLOWED_JOBS = {
     'CONTENT CREATOR', 'COMPUTER SCIENTIST', 'SOFTWARE ENGINEER', 'WEB DEVELOPER', 'DEVELOPER', 'IT COMPANY',
     'YOUTUBER', 'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE',
@@ -32,7 +36,7 @@ NOT_ALLOWED_JOBS = {
 }
 
 
-# --- HELPER FUNCTION: PARSE AND CHECK (UPDATED) ---
+# --- HELPER FUNCTION: PARSE AND CHECK ---
 
 def check_client_data(report_text):
     """Parses the client report text and checks against the defined rules, including disallowed jobs."""
@@ -43,23 +47,22 @@ def check_client_data(report_text):
     for line in lines:
         if '-' in line:
             key, value = line.split('-', 1)
-            # Use .title() for consistent key access in the dictionary
             data[key.strip().title()] = value.strip()
 
     errors = []
 
-    # 1. Check for missing required fields (Excludes Salary)
-    # Using .title() on REQUIRED_FIELDS to match the key conversion above
+    # 1. Check for missing required fields
     for field in REQUIRED_FIELDS:
         if not data.get(field) or data.get(field) == '':
-            errors.append(f"❌ Missing required field: {field}")
+            errors.append(f"❌ Missing required field: **{field}**")
 
     if errors and len(errors) == len(REQUIRED_FIELDS):
         return "Can't Cut", '\n'.join(errors)
 
     # 2. Check Location
     location = data.get('Location', '').upper()
-    if location in NOT_DEVELOP_COUNTRIES:
+    # Using 'any' for better phrase matching, as implemented in a previous step
+    if any(country in location for country in NOT_DEVELOP_COUNTRIES):
         errors.append("❌ Fails Location rule (Not Develop Country).")
 
     # 3. Check Age
@@ -80,9 +83,8 @@ def check_client_data(report_text):
         pass
     else:
         try:
-            # Added more robust cleaning for symbols
             salary = float(salary_str.replace('$', '').replace('€', '').replace('£', '').replace(',', ''))
-
+            
             if salary < MIN_SALARY:
                 errors.append(f"❌ Fails Salary rule (Must be ${MIN_SALARY} or more).")
         except (ValueError, TypeError):
@@ -95,7 +97,6 @@ def check_client_data(report_text):
         pass
     else:
         try:
-            # Use split(' ')[0] to handle inputs like "8 hours"
             working_hours = float(working_hours_str.split(' ')[0])
             if working_hours > MAX_HOURS:
                 errors.append(
@@ -103,21 +104,18 @@ def check_client_data(report_text):
         except (ValueError, TypeError):
             errors.append("❌ Invalid Working Hours value. Must be a number (<=12) or 'Not Fixed/Flexible'.")
 
-    # 6. Check Job (UPDATED WITH DISALLOWANCE RULE)
+    # 6. Check Job
     job_input = data.get('Job', '').upper()
 
-    # A. Check if the job field is missing or generic
     if not job_input or job_input in ['NONE', 'N/A', 'UNKNOWN']:
         errors.append("❌ Fails Job rule (Job must be specified).")
     else:
-        # B. Check if the job is on the disallowed list
         is_disallowed = False
         for disallowed_job in NOT_ALLOWED_JOBS:
-            # Check if the disallowed job phrase is contained within the input job description
             if disallowed_job in job_input:
                 is_disallowed = True
                 break
-
+        
         if is_disallowed:
             errors.append("❌ Fails Job rule (Profession is not allowed to develop, or is a related position).")
 
@@ -129,7 +127,7 @@ def check_client_data(report_text):
     # 8. Final Result Determination
     if not errors:
         result = "Passed"
-        remark = "✅ All requirements met. Client can be developed."
+        remark = "✅ **All requirements met.** Client can be developed."
     else:
         result = "Can't Cut"
         error_list_text = '- ' + '\n- '.join(errors)
@@ -138,48 +136,55 @@ def check_client_data(report_text):
     return result, remark
 
 
-# --- HANDLER FUNCTION (NOW ASYNCHRONOUS) ---
+# --- COMMAND HANDLERS ---
+
+async def start(update: Update, context):
+    """Sends a greeting and ensures the bot is set to active."""
+    # Set the bot state to active upon starting
+    context.bot_data[BOT_STATE_KEY] = True 
+    
+    await update.message.reply_text(
+        'Hello! Client Filter Bot is **ACTIVE**.\n\n'
+        'Send me the client report using the required format to begin filtering:\n'
+        'Example: Location - USA\nAge - 30\nJob - Engineer\n...'
+    , parse_mode='Markdown')
+
+async def pause_command(update: Update, context):
+    """Pauses the client filtering message handler."""
+    context.bot_data[BOT_STATE_KEY] = False
+    await update.message.reply_text("⏸️ **Bot Paused.** I will no longer process client reports until you run `/unpause`.", parse_mode='Markdown')
+
+async def unpause_command(update: Update, context):
+    """Unpauses the client filtering message handler."""
+    context.bot_data[BOT_STATE_KEY] = True
+    await update.message.reply_text("▶️ **Bot Activated.** I am now ready to process client reports.", parse_mode='Markdown')
+
+
+# --- MAIN MESSAGE HANDLER (UPDATED with State Check) ---
 
 async def client_filter_handler(update: Update, context):
-    """The main handler that processes the user's client report text."""
-    # Ensure update.message and update.message.text exist
-    if not update.message or not update.message.text:
+    """Processes the client report text only if the bot is active."""
+    # Check if the bot is currently paused
+    if not context.bot_data.get(BOT_STATE_KEY, True): 
+        # Optional: Send a subtle reminder that the bot is paused
+        # await update.message.reply_text("I am currently paused. Use /unpause to restart.")
         return
-        
+
+    if not update.message or not update.message.text or update.message.text.startswith('/'):
+        return
+
     report_text = update.message.text
-
-    if report_text.startswith('/'):
-        return
-
+    
     result, remark = check_client_data(report_text)
 
     response_message = f"--- CLIENT FILTER RESULT ---\n\n"
     response_message += f"**RESULT:** `{result}`\n\n"
     response_message += f"**Remark:**\n{remark}"
 
-    # FIX: Must use await
     await update.message.reply_text(response_message, parse_mode='Markdown')
 
 
-# --- STANDARD COMMAND HANDLERS (NOW ASYNCHRONOUS) ---
-
-async def start(update: Update, context):
-    """Sends a greeting when the user issues the /start command."""
-    # FIX: Must use await
-    await update.message.reply_text(
-        'Hello! Send me the client report using your specified format, and I will filter it for you. '
-        'Example format:\nLocation - USA\nAge - 30\nJob - Engineer\nSalary - 400\nWorking Hours - 8\nClient Account Link - http://example.com/social\nRemark - '
-    )
-
-
-async def help_command(update: Update, context):
-    """Sends a help message."""
-    # FIX: Must use await
-    await update.message.reply_text(
-        'Send me a client report in the specified format to check if they "Passed" or "Can\'t Cut."')
-
-
-# --- MAIN BOT EXECUTION (Modern PTB Structure) ---
+# --- MAIN BOT EXECUTION ---
 
 def main():
     """Start the bot using the modern Application-based structure."""
@@ -206,4 +211,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
