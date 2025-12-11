@@ -14,11 +14,13 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # --- BOT RULE SET ---
 NOT_DEVELOP_COUNTRIES = {
-    'AMERICA', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM'
+    'AMERICA', 'USA', 'Canada', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM'
 }
 MIN_AGE = 25
 MAX_AGE = 45
 MIN_SALARY = 300
+MIN_HOURS = 0
+MAX_HOURS = 12
 REQUIRED_FIELDS = ['Location', 'Age', 'Job', 'Salary', 'Client Account Link']
 
 
@@ -61,6 +63,20 @@ def check_client_data(report_text):
     except (ValueError, TypeError):
         errors.append("❌ Invalid or missing Salary value.")
 
+  # Rule: Pass if hours are flexible/not fixed
+    if 'not fixed' in working_hours_str or 'flexible' in working_hours_str:
+        pass 
+    else:
+        # Try to parse as a number
+        try:
+            working_hours = float(working_hours_str)
+            # Rule: Fails if more than 12 hours
+            if working_hours > MAX_HOURS:
+                errors.append(f"❌ Fails Working Hours rule (Must be less than or equal to {MAX_HOURS} hours, or 'Not Fixed').")
+        except (ValueError, TypeError):
+            # Fails if it's non-numeric text that isn't 'not fixed' or 'flexible'
+            errors.append("❌ Invalid Working Hours value. Must be a number (<=12) or 'Not Fixed/Flexible'.")
+          
     job = data.get('Job')
     if not job or job.lower() == 'none' or job.lower() == 'n/a':
         errors.append("❌ Fails Job rule (Job must be specified).")
@@ -139,3 +155,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
