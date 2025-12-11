@@ -12,19 +12,21 @@ TOKEN = '8287697686:AAGrq9d1R3YPW7Sag48jFA4T2iD7NZTzyJA'
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
-# --- BOT RULE SET ---
+# --- BOT RULE SET (UPDATED) ---
+# Countries considered 'Not Develop' based on your rule
 NOT_DEVELOP_COUNTRIES = {
-    'AMERICA', 'USA', 'Canada', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM'
+    'AMERICA', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM'
 }
 MIN_AGE = 25
 MAX_AGE = 45
 MIN_SALARY = 300
 MIN_HOURS = 0
-MAX_HOURS = 12
-REQUIRED_FIELDS = ['Location', 'Age', 'Job', 'Salary', 'Client Account Link']
+MAX_HOURS = 12 # Maximum allowed working hours
+# 'Working Hours' has been added to the required fields
+REQUIRED_FIELDS = ['Location', 'Age', 'Job', 'Salary', 'Working Hours', 'Client Account Link']
 
 
-# --- HELPER FUNCTION: PARSE AND CHECK (No change needed here) ---
+# --- HELPER FUNCTION: PARSE AND CHECK (UPDATED) ---
 
 def check_client_data(report_text):
     """Parses the client report text and checks against the defined rules."""
@@ -38,17 +40,21 @@ def check_client_data(report_text):
 
     errors = []
 
+    # 1. Check for missing required fields (Now includes 'Working Hours')
     for field in REQUIRED_FIELDS:
         if not data.get(field) or data.get(field) == '':
             errors.append(f"❌ Missing required field: {field}")
 
+    # Stop here if essential fields are missing
     if errors:
         return "Can't Cut", '\n'.join(errors)
 
+    # 2. Check Location (Develop/Not Develop)
     location = data.get('Location', '').upper()
     if location in NOT_DEVELOP_COUNTRIES:
         errors.append("❌ Fails Location rule (Not Develop Country).")
 
+    # 3. Check Age
     try:
         age = int(data.get('Age'))
         if not (MIN_AGE <= age <= MAX_AGE):
@@ -56,6 +62,7 @@ def check_client_data(report_text):
     except (ValueError, TypeError):
         errors.append("❌ Invalid or missing Age value.")
 
+    # 4. Check Salary
     try:
         salary = float(data.get('Salary').replace('$', '').replace(',', ''))
         if salary <= MIN_SALARY:
@@ -63,7 +70,10 @@ def check_client_data(report_text):
     except (ValueError, TypeError):
         errors.append("❌ Invalid or missing Salary value.")
 
-  # Rule: Pass if hours are flexible/not fixed
+    # 5. Check Working Hours (NEW RULE IMPLEMENTATION)
+    working_hours_str = data.get('Working Hours', '').strip().lower()
+    
+    # Rule: Pass if hours are flexible/not fixed
     if 'not fixed' in working_hours_str or 'flexible' in working_hours_str:
         pass 
     else:
@@ -76,15 +86,19 @@ def check_client_data(report_text):
         except (ValueError, TypeError):
             # Fails if it's non-numeric text that isn't 'not fixed' or 'flexible'
             errors.append("❌ Invalid Working Hours value. Must be a number (<=12) or 'Not Fixed/Flexible'.")
-          
+
+
+    # 6. Check Job
     job = data.get('Job')
     if not job or job.lower() == 'none' or job.lower() == 'n/a':
         errors.append("❌ Fails Job rule (Job must be specified).")
 
+    # 7. Check Client Account Link
     link = data.get('Client Account Link')
     if not link or 'http' not in link.lower() and '.' not in link.lower():
         errors.append("❌ Fails Link rule (Social Media Link must be included and look like a link).")
 
+    # 8. Final Result Determination
     if not errors:
         result = "Passed"
         remark = "✅ All requirements met. Client can be developed."
@@ -155,4 +169,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
