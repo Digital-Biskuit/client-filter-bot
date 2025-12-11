@@ -1,5 +1,5 @@
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-import logging
+from telegram.ext import Application, CommandHandler, MessageHandler
+from telegram.ext import filters # Filters is now filters
 
 # --- CONFIGURATION ---
 # Replace 'YOUR_BOT_TOKEN_HERE' with the token you copied from BotFather
@@ -155,4 +155,5 @@ def main():
 
 
 if __name__ == '__main__':
+
     main()
