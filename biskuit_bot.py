@@ -184,20 +184,26 @@ async def help_command(update: Update, context):
 def main():
     """Start the bot using the modern Application-based structure."""
 
-    # 1. Create the Application (replaces Updater)
+    logger.info("Initializing Client Filter Bot Application...")
+    
     application = Application.builder().token(TOKEN).build()
+    
+    # Initialize the state to True if it doesn't exist (first run)
+    application.bot_data[BOT_STATE_KEY] = True
 
     # Register handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-
-    # This handler processes the report text
+    application.add_handler(CommandHandler("pause", pause_command))
+    # Note: We need /unpause to resume the bot's function
+    application.add_handler(CommandHandler("unpause", unpause_command)) 
+    
+    # This handler processes all text messages that are NOT commands
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_filter_handler))
 
-    # Start the Bot
-    print("Client Filter Bot is running...")
+    logger.info("Client Filter Bot is running...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == '__main__':
     main()
+
