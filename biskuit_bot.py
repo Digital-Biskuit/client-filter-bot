@@ -144,20 +144,20 @@ async def start(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True 
     
     await update.message.reply_text(
-        'Hello! Client Filter Bot is **ACTIVE**.\n\n'
-        'Send me the client report using the required format to begin filtering:\n'
+        'မင်္ဂလာပါ! ကျွန်တော်က T389 ရဲ့ **မန်နေဂျာပါ**.\n\n'
+        'Approve လိုချင်ရင် ဒီလို Format နဲ့ပို့ဖို့မမေ့နဲ့:\n'
         'Example: Location - USA\nAge - 30\nJob - Engineer\n...'
     , parse_mode='Markdown')
 
 async def pause_command(update: Update, context):
     """Pauses the client filtering message handler."""
     context.bot_data[BOT_STATE_KEY] = False
-    await update.message.reply_text("⏸️ **Bot Paused.** I will no longer process client reports until you run `/unpause`.", parse_mode='Markdown')
+    await update.message.reply_text("⏸️ **ငါ နားဦးမယ်** တိတ်တိတ်နေ ပို့စရာရှိ ဒီစာပို့ပြီး ငါ့ကိုနှိုး `/unpause`.", parse_mode='Markdown')
 
 async def unpause_command(update: Update, context):
     """Unpauses the client filtering message handler."""
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("▶️ **Bot Activated.** I am now ready to process client reports.", parse_mode='Markdown')
+    await update.message.reply_text("▶️ **ငါပြန်လာပြီ** မင်းတို့ အလုပ်လုပ်တော့", parse_mode='Markdown')
 
 
 # --- MAIN MESSAGE HANDLER (UPDATED with State Check) ---
@@ -211,3 +211,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
