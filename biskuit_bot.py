@@ -29,22 +29,16 @@ NOT_ALLOWED_JOBS = {
 }
 
 # --- TEXT SCANNING LOGIC ---
-def validate_report(text, current_user):
-    text_upper = text.upper()
+def check_client_data(report_text):
     data = {}
-    
-    # Check for dash format
-    lines = [l for l in text.split('\n') if '-' in l]
-    # STRICT RULE: Ignore text unless at least 3 valid 'Field - Value' lines are found
-    if len(lines) < 3:
-        return None, None
-
+    lines = report_text.strip().split('\n')
     for line in lines:
-        key, val = line.split('-', 1)
-        data[key.strip().title()] = val.strip()
+        if '-' in line:
+            key, value = line.split('-', 1)
+            data[key.strip().title()] = value.strip()
 
     errors = []
-
+  
     # 1. Location
     loc = data.get('Location', '').upper()
     if not loc:
@@ -155,4 +149,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
