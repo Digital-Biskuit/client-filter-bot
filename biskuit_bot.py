@@ -58,11 +58,18 @@ def check_client_data(report_text):
 
     # 4. Salary
     try:
-        salary_match = re.search(r'\d+', data.get('Salary', '0'))
-        salary = int(salary_match.group()) if salary_match else 0
-        if salary < MIN_SALARY: errors.append(f"❌ Salary must be at least ${MIN_SALARY}. Please Check Sir @DLmktp1\_T389")
-    except:
-        errors.append("❌ Invalid Salary.")
+    # This finds the first number in the Salary line
+    salary_match = re.search(r'\d+', data.get('Salary', '0'))
+    salary = int(salary_match.group()) if salary_match else 0
+    
+    # Check: If salary is less than 300, it is NOT allowed
+    if salary < MIN_SALARY: 
+        errors.append(
+            f"❌ Salary must be at least ${MIN_SALARY}. Less than {MIN_SALARY} is not allowed to develop. "
+            f"Please Check Sir @DLmktp1\_T389"
+        )
+except:
+    errors.append("❌ Invalid Salary format. Please provide a number.")
 
     # 5. Working Hours
     try:
@@ -122,6 +129,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
