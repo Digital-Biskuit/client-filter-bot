@@ -1,1 +1,5 @@
 python-telegram-bot
+python-telegram-bot
+opencv-python-headless
+pytesseract
+numpy
