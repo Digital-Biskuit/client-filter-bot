@@ -28,15 +28,20 @@ NOT_ALLOWED_JOBS = {
     'YOUTUBER', 'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE', 'POLICE', 'SOLDIER'
 }
 
-
 # --- TEXT SCANNING LOGIC ---
-def check_client_data(report_text):
+def validate_report(text, current_user):
+    text_upper = text.upper()
     data = {}
-    lines = report_text.strip().split('\n')
+    
+    # Check for dash format
+    lines = [l for l in text.split('\n') if '-' in l]
+    # STRICT RULE: Ignore text unless at least 3 valid 'Field - Value' lines are found
+    if len(lines) < 3:
+        return None, None
+
     for line in lines:
-        if '-' in line:
-            key, value = line.split('-', 1)
-            data[key.strip().title()] = value.strip()
+        key, val = line.split('-', 1)
+        data[key.strip().title()] = val.strip()
 
     errors = []
 
@@ -124,6 +129,14 @@ async def client_filter_handler(update: Update, context):
     result, remark = check_client_data(update.message.text)
     await update.message.reply_text(f"--- RESULT ---\n\n**RESULT:** `{result}`\n\n{remark}", parse_mode='Markdown')
 
+# If validate_report returns None, it means the format was wrong -> Stay Silent
+    if result is None:
+        return
+
+    header = "🚨 DUPLICATE 🚨" if result == "Duplicate" else "--- RESULT ---"
+    response = f"{header}\n\n**RESULT:** `{result}`\n\n{remark}\n\n**Member:** @{username}"
+    
+    await update.message.reply_text(response, parse_mode='Markdown')
 
 # --- MAIN ---
 def main():
@@ -142,3 +155,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
