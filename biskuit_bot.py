@@ -104,7 +104,7 @@ async def pause_command(update: Update, context):
 
 async def unpause_command(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("▶ Bot ပြန်လည်လုပ်လုပ်နေပြီဖြစ်သည်.")
+    await update.message.reply_text("▶ Bot ပြန်လည်လုပ်လုပ်နေပြီ ဖြစ်သည်.")
 
 async def client_filter_handler(update: Update, context):
     if not context.bot_data.get(BOT_STATE_KEY, True): return
@@ -128,4 +128,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
