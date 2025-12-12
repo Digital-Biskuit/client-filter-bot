@@ -59,7 +59,7 @@ def check_client_data(report_text):
     if not link or ('.' not in link): errors.append("❌ Missing or invalid Client Link.")
 
     if not errors:
-        return "Passed", "✅ All requirements met."
+        return "Passed", "✅ All requirements met. This client can be develop."
     return "Can't Cut", "⚠️ Reasons:\n" + "\n".join(errors)
 
 # --- IMAGE SCANNING LOGIC ---
@@ -96,15 +96,15 @@ async def process_image_report(update: Update, context):
 # --- COMMANDS ---
 async def start(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("Bot is ACTIVE. Send a report or screenshot.")
+    await update.message.reply_text("Bot is ACTIVE. စတင်ပြီး Approval တောင်းခံနိုင်ပါပြီ။")
 
 async def pause_command(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = False
-    await update.message.reply_text("⏸ Bot Paused.")
+    await update.message.reply_text("⏸ Bot ရပ်နားမည်.")
 
 async def unpause_command(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("▶ Bot Unpaused.")
+    await update.message.reply_text("▶ Bot ပြန်လည်လုပ်လုပ်နေပြီဖြစ်သည်.")
 
 async def client_filter_handler(update: Update, context):
     if not context.bot_data.get(BOT_STATE_KEY, True): return
@@ -128,3 +128,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
