@@ -15,7 +15,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # --- BOT RULE SET ---
-NOT_DEVELOP_COUNTRIES = {'AMERICA', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'US', 'CAN', 'UK', 'EU'}
+NOT_DEVELOP_COUNTRIES = {'AMERICA', 'AFRICA', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'US', 'CAN', 'CANADA'}
 MIN_AGE, MAX_AGE = 25, 45
 MIN_SALARY = 300
 MAX_HOURS = 12
@@ -37,7 +37,7 @@ def check_client_data(report_text):
     errors = []
 
     # 1. Duplicate & Validity Check for Link
-    link = data.get('Client Account Link') or data.get('Link') or data.get('Client Link') or data.get('Client Facebook Link')
+    link = data.get('Client Account Link') or data.get('Link') or data.get('Client Link') or data.get('Client Facebook Link') or data.get('Client Tiktok Link') or data.get('Client Instagram Link')
     if not link or ('.' not in link):
         errors.append("❌ Missing or invalid Client Link.")
     elif link in processed_links:
@@ -90,11 +90,11 @@ async def start(update: Update, context):
 
 async def pause_command(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = False
-    await update.message.reply_text("⏸ Bot has been paused.")
+    await update.message.reply_text("⏸ Bot ခဏရပ်နားမည်.")
 
 async def unpause_command(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("▶ Bot is now active again.")
+    await update.message.reply_text("▶ Bot ပြန်လည်လုပ်လုပ်နေပြီဖြစ်သည်.")
 
 async def client_filter_handler(update: Update, context):
     # Do nothing if paused
@@ -122,3 +122,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
