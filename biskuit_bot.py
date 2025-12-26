@@ -1,14 +1,21 @@
 import logging
 import re
+import datetime
+import pytz
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
 TOKEN = '8287697686:AAGrq9d1R3YPW7Sag48jFA4T2iD7NZTzyJA'
 BOT_STATE_KEY = 'is_active'
+REPORT_CHAT_ID = -1002283084705 # Your Group ID
+ADMIN_HANDLE = "@DLTrainer\_T389"
+YANGON_TZ = pytz.timezone('Asia/Yangon')
 
-# In-memory database to prevent duplicate links
+# Data Storage
 processed_links = set()
+# Format: {user_code: {"mention": "@user", "passed": 0, "failed": 0}}
+daily_stats = {}
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,7 +38,6 @@ MAX_HOURS = 12
 NOT_ALLOWED_JOBS = {'CONTENT CREATOR', 'COMPUTER SCIENTIST', 'SOFTWARE ENGINEER', 'WEB DEVELOPER', 'DEVELOPER', 'DATA SCIENTIST', 'NETWORK MANAGEMENT',
                     'YOUTUBER', 'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE', 'POLICE', 'SOLDIER', 'CYBERSECURITY', 'NETWORK', 'SERVER', 'SYSTEM ADMIN'}
 
-
 def check_client_data(report_text):
     data = {}
     lines = report_text.strip().split('\n')
@@ -40,10 +46,12 @@ def check_client_data(report_text):
             parts = line.split('-', 1)
             data[parts[0].strip().title()] = parts[1].strip()
 
-    # STRICT FILTER: The bot ignores messages that don't match the approval format headers.
     required_keys = {'Location', 'Age', 'Job', 'Salary', 'Working Hours'}
     if not any(key in data for key in required_keys):
-        return None, None
+        return None, None, "N/A"
+
+    # Extract Code for tracking
+    user_code = data.get('Code', 'UNKNOWN').upper()
 
     errors = []
 
@@ -52,57 +60,95 @@ def check_client_data(report_text):
     link = next((data.get(k) for k in link_keys if data.get(k)), None)
     
     if not link or ('.' not in link):
-        errors.append("❌ Missing or invalid Client Link. Please Check Sir @DLmktp1\_T389")
+        errors.append(f"❌ Missing or invalid Client Link. Please Check Sir {ADMIN_HANDLE}")
     elif link in processed_links:
-        errors.append("❌ Duplicate Error: This link has already been checked. Please Check Sir @DLmktp1\_T389")
+        errors.append(f"❌ Duplicate Error: This link has already been checked. Please Check Sir {ADMIN_HANDLE}")
 
     # 2. Location
     loc = data.get('Location', '').upper()
     if any(country in loc for country in NOT_DEVELOP_COUNTRIES):
-        errors.append("❌ Fails Location rule. Please Check Sir @DLmktp1\_T389")
+        errors.append(f"❌ Fails Location rule. Please Check Sir {ADMIN_HANDLE}")
 
     # 3. Age
     try:
         age_match = re.search(r'\d+', data.get('Age', '0'))
         age = int(age_match.group()) if age_match else 0
         if not (MIN_AGE <= age <= MAX_AGE): 
-            errors.append(f"❌ Age must be {MIN_AGE}-{MAX_AGE}. Please Check Sir @DLmktp1\_T389")
+            errors.append(f"❌ Age must be {MIN_AGE}-{MAX_AGE}. Please Check Sir {ADMIN_HANDLE}")
     except:
-        errors.append("❌ Invalid Age format. Please Check Sir @DLmktp1\_T389")
+        errors.append(f"❌ Invalid Age format. Please Check Sir {ADMIN_HANDLE}")
 
-    # 4. Salary (With "Not Telling" Option)
+    # 4. Salary
     salary_raw = data.get('Salary', '').upper()
     if 'NOT TELLING' not in salary_raw:
         try:
             salary_match = re.search(r'\d+', salary_raw)
             salary = int(salary_match.group()) if salary_match else 0
             if salary < MIN_SALARY: 
-                errors.append(f"❌ Salary must be at least ${MIN_SALARY}. Less than {MIN_SALARY} not allowed. Please Check Sir @DLmktp1\_T389")
+                errors.append(f"❌ Salary must be at least ${MIN_SALARY}. Less than {MIN_SALARY} not allowed. Please Check Sir {ADMIN_HANDLE}")
         except:
-            errors.append("❌ Invalid Salary format. Please provide a number or 'Not Telling'.")
+            errors.append(f"❌ Invalid Salary format. Please provide a number or 'Not Telling'.")
 
-    # 5. Working Hours (With "Not Telling" Option)
+    # 5. Working Hours
     hours_raw = data.get('Working Hours', '').upper()
     if 'NOT TELLING' not in hours_raw:
         try:
             hours_match = re.search(r'\d+', hours_raw)
             hours = int(hours_match.group()) if hours_match else 0
             if hours > MAX_HOURS: 
-                errors.append(f"❌ Working hours cannot exceed {MAX_HOURS}h. Please Check Sir @DLmktp1\_T389")
+                errors.append(f"❌ Working hours cannot exceed {MAX_HOURS}h. Please Check Sir {ADMIN_HANDLE}")
         except:
-            errors.append("❌ Invalid Working Hours. Please provide a number or 'Not Telling'.")
+            errors.append(f"❌ Invalid Working Hours. Please provide a number or 'Not Telling'.")
 
     # 6. Job
     job = data.get('Job', '').upper()
     if any(forbidden in job for forbidden in NOT_ALLOWED_JOBS):
-        errors.append("❌ Banned profession. Please Check Sir @DLmktp1\_T389")
+        errors.append(f"❌ Banned profession. Please Check Sir {ADMIN_HANDLE}")
 
     if not errors:
         processed_links.add(link)
-        return "Passed", "✅ All requirements met. Approved."
+        return "Passed", "✅ All requirements met. Approved.", user_code
 
-    return "Can't Cut", "⚠️ Reasons:\n" + "\n".join(errors)
+    return "Can't Cut", "⚠️ Reasons:\n" + "\n".join(errors), user_code
 
+
+# --- TRACKING LOGIC ---
+def update_stats(user, result, user_code):
+    mention = f"@{user.username}" if user.username else user.first_name
+    mention = mention.replace("_", "\\_") # Escape underscores for Markdown
+    
+    if user_code not in daily_stats:
+        daily_stats[user_code] = {"mention": mention, "passed": 0, "failed": 0}
+    
+    if result == "Passed":
+        daily_stats[user_code]["passed"] += 1
+    else:
+        daily_stats[user_code]["failed"] += 1
+
+# --- DAILY REPORT JOB ---
+async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
+    if not daily_stats:
+        return
+
+    report = f"📊 **DAILY SUMMARY REPORT** 📊\nTarget: {ADMIN_HANDLE}\n\n"
+    total_passed = 0
+    total_failed = 0
+
+    for code, data in daily_stats.items():
+        report += f"🔑 **Code: {code}** ({data['mention']})\n"
+        report += f"   ✅ Passed: {data['passed']} | ❌ Failed: {data['failed']}\n\n"
+        total_passed += data['passed']
+        total_failed += data['failed']
+
+    report += "--------------------------\n"
+    report += f"📈 **TOTAL TODAY**\n✅ Passed: {total_passed} | ❌ Failed: {total_failed}\n\n"
+    report += "Resetting data for the next shift... (Asia/Yangon)"
+
+    await context.bot.send_message(chat_id=REPORT_CHAT_ID, text=report, parse_mode='Markdown')
+    
+    # Reset stats and links for next day
+    daily_stats.clear()
+    processed_links.clear()
 
 # --- COMMANDS ---
 async def start(update: Update, context):
@@ -121,23 +167,26 @@ async def client_filter_handler(update: Update, context):
     if not context.bot_data.get(BOT_STATE_KEY, True):
         return
 
-    result, remark = check_client_data(update.message.text)
+    result, remark, user_code = check_client_data(update.message.text)
     if result:
+        update_stats(update.message.from_user, result, user_code)
         await update.message.reply_text(f"--- SCAN RESULT ---\n\n**RESULT:** `{result}`\n\n{remark}", parse_mode='Markdown')
 
 def main():
     application = Application.builder().token(TOKEN).build()
     application.bot_data[BOT_STATE_KEY] = True
+    
+    # SCHEDULE DAILY REPORT (2:00 AM Asia/Yangon)
+    report_time = datetime.time(hour=2, minute=0, second=0, tzinfo=YANGON_TZ)
+    application.job_queue.run_daily(send_daily_report, time=report_time)
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("pause", pause_command))
     application.add_handler(CommandHandler("unpause", unpause_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_filter_handler))
-    print("Bot is running...")
+    
+    print("Bot is running. Daily report scheduled for 2:00 AM Yangon time.")
     application.run_polling()
 
 if __name__ == '__main__':
     main()
-
-
-
-
