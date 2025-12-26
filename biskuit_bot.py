@@ -139,15 +139,15 @@ async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("Bot is ACTIVE.")
+    await update.message.reply_text("Bot is ACTIVE. Format စစ်ဆေးရန် အဆင်သင့်ဖြစ်ပါပြီ။")
 
 async def pause_command(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = False
-    await update.message.reply_text("⏸ Bot Paused.")
+    await update.message.reply_text("⏸ Bot ခဏရပ်နားမည်.")
 
 async def unpause_command(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("▶ Bot Active.")
+    await update.message.reply_text("▶ Bot ပြန်လည်လုပ်လုပ်နေပြီဖြစ်သည်")
 
 async def client_filter_handler(update: Update, context):
     if not context.bot_data.get(BOT_STATE_KEY, True):
@@ -178,3 +178,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
