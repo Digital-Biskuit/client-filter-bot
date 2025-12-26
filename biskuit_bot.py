@@ -6,15 +6,16 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
+# I have put your actual token back here. Ensure this is exactly what you save.
 TOKEN = '8287697686:AAGrq9d1R3YPW7Sag48jFA4T2iD7NZTzyJA'
 BOT_STATE_KEY = 'is_active'
-REPORT_CHAT_ID = -1002283084705 # Your Group ID
-ADMIN_HANDLE = "@DLTrainer\_T389"
+REPORT_CHAT_ID = -1002283084705 
+# Added 'r' before the string to fix the SyntaxWarning from your logs
+ADMIN_HANDLE = r"@DLTrainer\_T389"
 YANGON_TZ = pytz.timezone('Asia/Yangon')
 
 # Data Storage
 processed_links = set()
-# Format: {user_code: {"mention": "@user", "passed": 0, "failed": 0}}
 daily_stats = {}
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -50,12 +51,9 @@ def check_client_data(report_text):
     if not any(key in data for key in required_keys):
         return None, None, "N/A"
 
-    # Extract Code for tracking
     user_code = data.get('Code', 'UNKNOWN').upper()
-
     errors = []
 
-    # 1. Duplicate & Validity Check for Link
     link_keys = ['Client Account Link', 'Link', 'Client Link', 'Client Facebook Link', 'Client Tiktok Link', 'Client Instagram Link']
     link = next((data.get(k) for k in link_keys if data.get(k)), None)
     
@@ -64,12 +62,10 @@ def check_client_data(report_text):
     elif link in processed_links:
         errors.append(f"❌ Duplicate Error: This link has already been checked. Please Check Sir {ADMIN_HANDLE}")
 
-    # 2. Location
     loc = data.get('Location', '').upper()
     if any(country in loc for country in NOT_DEVELOP_COUNTRIES):
         errors.append(f"❌ Fails Location rule. Please Check Sir {ADMIN_HANDLE}")
 
-    # 3. Age
     try:
         age_match = re.search(r'\d+', data.get('Age', '0'))
         age = int(age_match.group()) if age_match else 0
@@ -78,7 +74,6 @@ def check_client_data(report_text):
     except:
         errors.append(f"❌ Invalid Age format. Please Check Sir {ADMIN_HANDLE}")
 
-    # 4. Salary
     salary_raw = data.get('Salary', '').upper()
     if 'NOT TELLING' not in salary_raw:
         try:
@@ -89,7 +84,6 @@ def check_client_data(report_text):
         except:
             errors.append(f"❌ Invalid Salary format. Please provide a number or 'Not Telling'.")
 
-    # 5. Working Hours
     hours_raw = data.get('Working Hours', '').upper()
     if 'NOT TELLING' not in hours_raw:
         try:
@@ -100,7 +94,6 @@ def check_client_data(report_text):
         except:
             errors.append(f"❌ Invalid Working Hours. Please provide a number or 'Not Telling'.")
 
-    # 6. Job
     job = data.get('Job', '').upper()
     if any(forbidden in job for forbidden in NOT_ALLOWED_JOBS):
         errors.append(f"❌ Banned profession. Please Check Sir {ADMIN_HANDLE}")
@@ -111,11 +104,9 @@ def check_client_data(report_text):
 
     return "Can't Cut", "⚠️ Reasons:\n" + "\n".join(errors), user_code
 
-
-# --- TRACKING LOGIC ---
 def update_stats(user, result, user_code):
     mention = f"@{user.username}" if user.username else user.first_name
-    mention = mention.replace("_", "\\_") # Escape underscores for Markdown
+    mention = mention.replace("_", "\\_")
     
     if user_code not in daily_stats:
         daily_stats[user_code] = {"mention": mention, "passed": 0, "failed": 0}
@@ -125,7 +116,6 @@ def update_stats(user, result, user_code):
     else:
         daily_stats[user_code]["failed"] += 1
 
-# --- DAILY REPORT JOB ---
 async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
     if not daily_stats:
         return
@@ -142,26 +132,22 @@ async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
 
     report += "--------------------------\n"
     report += f"📈 **TOTAL TODAY**\n✅ Passed: {total_passed} | ❌ Failed: {total_failed}\n\n"
-    report += "Resetting data for the next shift... (Asia/Yangon)"
 
     await context.bot.send_message(chat_id=REPORT_CHAT_ID, text=report, parse_mode='Markdown')
-    
-    # Reset stats and links for next day
     daily_stats.clear()
     processed_links.clear()
 
-# --- COMMANDS ---
 async def start(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("Bot is ACTIVE. Format စစ်ဆေးရန် အဆင်သင့်ဖြစ်ပါပြီ။")
+    await update.message.reply_text("Bot is ACTIVE.")
 
 async def pause_command(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = False
-    await update.message.reply_text("⏸ Bot ခဏရပ်နားမည်.")
+    await update.message.reply_text("⏸ Bot Paused.")
 
 async def unpause_command(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("▶ Bot ပြန်လည်လုပ်လုပ်နေပြီဖြစ်သည်.")
+    await update.message.reply_text("▶ Bot Active.")
 
 async def client_filter_handler(update: Update, context):
     if not context.bot_data.get(BOT_STATE_KEY, True):
@@ -176,16 +162,18 @@ def main():
     application = Application.builder().token(TOKEN).build()
     application.bot_data[BOT_STATE_KEY] = True
     
-    # SCHEDULE DAILY REPORT (2:00 AM Asia/Yangon)
-    report_time = datetime.time(hour=2, minute=0, second=0, tzinfo=YANGON_TZ)
-    application.job_queue.run_daily(send_daily_report, time=report_time)
+    # Ensure JobQueue is available
+    if application.job_queue:
+        report_time = datetime.time(hour=2, minute=0, second=0, tzinfo=YANGON_TZ)
+        application.job_queue.run_daily(send_daily_report, time=report_time)
+    else:
+        logger.error("JobQueue not initialized. Ensure 'python-telegram-bot[job-queue]' is installed.")
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("pause", pause_command))
     application.add_handler(CommandHandler("unpause", unpause_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_filter_handler))
     
-    print("Bot is running. Daily report scheduled for 2:00 AM Yangon time.")
     application.run_polling()
 
 if __name__ == '__main__':
