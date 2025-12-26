@@ -1,6 +1,5 @@
-python-telegram-bot
+python-telegram-bot[job-queue]
+pytz
 opencv-python-headless
 pytesseract
 numpy
-pytz
-pip install "python-telegram-bot[job-queue]" pytz
