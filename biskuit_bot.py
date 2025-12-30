@@ -153,7 +153,7 @@ async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
     total_failed = 0
 
     for code, data in daily_stats.items():
-        report += f"🔑 **Code: {code}** ({data['mention']})\n"
+        report += f"🔑 **Code: {user.first_name}** ({data['mention']})\n"
         report += f"    ✅ Passed: {data['passed']} | ❌ Failed: {data['failed']}\n\n"
         total_passed += data['passed']
         total_failed += data['failed']
@@ -208,3 +208,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
