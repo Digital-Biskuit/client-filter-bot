@@ -6,38 +6,25 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
-# I have put your actual token back here. Ensure this is exactly what you save.
 TOKEN = '8287697686:AAGrq9d1R3YPW7Sag48jFA4T2iD7NZTzyJA'
 BOT_STATE_KEY = 'is_active'
 REPORT_CHAT_ID = -1002283084705 
-# Added 'r' before the string to fix the SyntaxWarning from your logs
 ADMIN_HANDLE = r"@DLTrainer\_T389"
 YANGON_TZ = pytz.timezone('Asia/Yangon')
 
-# Data Storage
+# Data Storage (Note: In-memory only. Restarts will wipe this)
 processed_links = set()
 daily_stats = {}
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- BOT RULE SET ---
-NOT_DEVELOP_COUNTRIES = {'AMERICA', 'AFRICA', 'Nepal', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'Algeria', 
-                         'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cameroon', 'Central African Republic', 
-                         'Chad', 'Comoros', 'Democratic Republic of the Congo', 'Republic of the Congo', 'Djibouti', 'Egypt', 'Equatorial Guinea', 
-                         'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Ivory Coast', 'Kenya', 
-                         'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 
-                         'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 
-                         'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe', 'Argentina', 
-                         'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Guyana', 'Paraguay', 'Peru', 'Suriname', 'Uruguay', 'Venezuela', 
-                         'Antigua and Barbuda', 'Bahamas', 'Barbados', 'Belize', 'Canada', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 
-                         'El Salvador', 'Grenada', 'Guatemala', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Saint Kitts and Nevis', 
-                         'Saint Lucia', 'Saint Vincent and the Grenadines', 'Trinidad and Tobago', 'United States', 'US', 'CAN', 'CANADA'}
+# [NOT_DEVELOP_COUNTRIES and NOT_ALLOWED_JOBS lists stay exactly as you had them]
+NOT_DEVELOP_COUNTRIES = {'AMERICA', 'AFRICA', 'Nepal', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cameroon', 'Central African Republic', 'Chad', 'Comoros', 'Democratic Republic of the Congo', 'Republic of the Congo', 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Ivory Coast', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe', 'Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Guyana', 'Paraguay', 'Peru', 'Suriname', 'Uruguay', 'Venezuela', 'Antigua and Barbuda', 'Bahamas', 'Barbados', 'Belize', 'Canada', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 'El Salvador', 'Grenada', 'Guatemala', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Trinidad and Tobago', 'United States', 'US', 'CAN', 'CANADA'}
 MIN_AGE, MAX_AGE = 25, 45
 MIN_SALARY = 300
 MAX_HOURS = 12
-NOT_ALLOWED_JOBS = {'CONTENT CREATOR', 'COMPUTER SCIENTIST', 'SOFTWARE ENGINEER', 'WEB DEVELOPER', 'DEVELOPER', 'DATA SCIENTIST', 'NETWORK MANAGEMENT',
-                    'YOUTUBER', 'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE', 'POLICE', 'SOLDIER', 'CYBERSECURITY', 'NETWORK', 'SERVER', 'SYSTEM ADMIN'}
+NOT_ALLOWED_JOBS = {'CONTENT CREATOR', 'COMPUTER SCIENTIST', 'SOFTWARE ENGINEER', 'WEB DEVELOPER', 'DEVELOPER', 'DATA SCIENTIST', 'NETWORK MANAGEMENT', 'YOUTUBER', 'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE', 'POLICE', 'SOLDIER', 'CYBERSECURITY', 'NETWORK', 'SERVER', 'SYSTEM ADMIN'}
 
 def check_client_data(report_text):
     data = {}
@@ -116,8 +103,33 @@ def update_stats(user, result, user_code):
     else:
         daily_stats[user_code]["failed"] += 1
 
+# --- NEW COMMAND: MYCOUNT ---
+async def mycount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # This searches for the user's mention/name in the stats
+    user = update.effective_user
+    mention = f"@{user.username}" if user.username else user.first_name
+    mention = mention.replace("_", "\\_")
+    
+    user_data = None
+    for code, data in daily_stats.items():
+        if data["mention"] == mention:
+            user_data = (code, data)
+            break
+            
+    if user_data:
+        code, data = user_data
+        await update.message.reply_text(
+            f"📊 **Your Progress (Code: {code})**\n"
+            f"✅ Passed: {data['passed']}\n"
+            f"❌ Failed: {data['failed']}",
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text("❌ No reports found for you today yet.")
+
 async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
     if not daily_stats:
+        logger.info("Daily report skipped: No stats to report.")
         return
 
     report = f"📊 **DAILY SUMMARY REPORT** 📊\nTarget: {ADMIN_HANDLE}\n\n"
@@ -126,16 +138,19 @@ async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
 
     for code, data in daily_stats.items():
         report += f"🔑 **Code: {code}** ({data['mention']})\n"
-        report += f"   ✅ Passed: {data['passed']} | ❌ Failed: {data['failed']}\n\n"
+        report += f"    ✅ Passed: {data['passed']} | ❌ Failed: {data['failed']}\n\n"
         total_passed += data['passed']
         total_failed += data['failed']
 
     report += "--------------------------\n"
     report += f"📈 **TOTAL TODAY**\n✅ Passed: {total_passed} | ❌ Failed: {total_failed}\n\n"
 
-    await context.bot.send_message(chat_id=REPORT_CHAT_ID, text=report, parse_mode='Markdown')
-    daily_stats.clear()
-    processed_links.clear()
+    try:
+        await context.bot.send_message(chat_id=REPORT_CHAT_ID, text=report, parse_mode='Markdown')
+        daily_stats.clear()
+        processed_links.clear()
+    except Exception as e:
+        logger.error(f"Failed to send daily report: {e}")
 
 async def start(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
@@ -159,23 +174,23 @@ async def client_filter_handler(update: Update, context):
         await update.message.reply_text(f"--- SCAN RESULT ---\n\n**RESULT:** `{result}`\n\n{remark}", parse_mode='Markdown')
 
 def main():
+    # Build application
     application = Application.builder().token(TOKEN).build()
     application.bot_data[BOT_STATE_KEY] = True
     
-    # Ensure JobQueue is available
-    if application.job_queue:
-        report_time = datetime.time(hour=2, minute=0, second=0, tzinfo=YANGON_TZ)
-        application.job_queue.run_daily(send_daily_report, time=report_time)
-    else:
-        logger.error("JobQueue not initialized. Ensure 'python-telegram-bot[job-queue]' is installed.")
+    # Corrected Daily Report Time (2:00 AM Yangon Time)
+    report_time = datetime.time(hour=2, minute=0, second=0, tzinfo=YANGON_TZ)
+    application.job_queue.run_daily(send_daily_report, time=report_time)
 
+    # Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("pause", pause_command))
     application.add_handler(CommandHandler("unpause", unpause_command))
+    application.add_handler(CommandHandler("mycount", mycount)) # Added mycount handler
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_filter_handler))
     
+    print("Bot is running...")
     application.run_polling()
 
 if __name__ == '__main__':
     main()
-
