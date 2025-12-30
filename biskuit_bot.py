@@ -12,7 +12,10 @@ REPORT_CHAT_ID = -1002283084705
 ADMIN_HANDLE = r"@DLTrainer\_T389"
 YANGON_TZ = pytz.timezone('Asia/Yangon')
 
-# Data Storage (Note: In-memory only. Restarts will wipe this)
+# --- ADMIN SECURITY ---
+MY_ADMIN_ID = 6328052501  # Fixed: Only this ID can see all reports
+
+# Data Storage
 processed_links = set()
 daily_stats = {}
 
@@ -103,9 +106,8 @@ def update_stats(user, result, user_code):
     else:
         daily_stats[user_code]["failed"] += 1
 
-# --- NEW COMMAND: MYCOUNT ---
+# --- COMMAND: MYCOUNT ---
 async def mycount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # This searches for the user's mention/name in the stats
     user = update.effective_user
     mention = f"@{user.username}" if user.username else user.first_name
     mention = mention.replace("_", "\\_")
@@ -119,17 +121,31 @@ async def mycount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_data:
         code, data = user_data
         await update.message.reply_text(
-            f"📊 **Your Progress (Code: {code})**\n"
-            f"✅ Passed: {data['passed']}\n"
-            f"❌ Failed: {data['failed']}",
+            f"📊 **Your Progress (Code: {code})**\n✅ Passed: {data['passed']}\n❌ Failed: {data['failed']}",
             parse_mode='Markdown'
         )
     else:
         await update.message.reply_text("❌ No reports found for you today yet.")
 
+# --- NEW COMMAND: ALLCOUNTS (ADMIN ONLY) ---
+async def allcounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != MY_ADMIN_ID:
+        await update.message.reply_text("⛔ Access Denied. Only the Admin can view all counts.")
+        return
+
+    if not daily_stats:
+        await update.message.reply_text("📊 No data recorded today yet.")
+        return
+
+    report = "📊 **Live Summary (Admin View)**\n\n"
+    for code, data in daily_stats.items():
+        report += f"🔑 **Code: {code}** ({data['mention']})\n"
+        report += f"    ✅ Passed: {data['passed']} | ❌ Failed: {data['failed']}\n\n"
+
+    await update.message.reply_text(report, parse_mode='Markdown')
+
 async def send_daily_report(context: ContextTypes.DEFAULT_TYPE):
     if not daily_stats:
-        logger.info("Daily report skipped: No stats to report.")
         return
 
     report = f"📊 **DAILY SUMMARY REPORT** 📊\nTarget: {ADMIN_HANDLE}\n\n"
@@ -174,19 +190,17 @@ async def client_filter_handler(update: Update, context):
         await update.message.reply_text(f"--- SCAN RESULT ---\n\n**RESULT:** `{result}`\n\n{remark}", parse_mode='Markdown')
 
 def main():
-    # Build application
     application = Application.builder().token(TOKEN).build()
     application.bot_data[BOT_STATE_KEY] = True
     
-    # Corrected Daily Report Time (2:00 AM Yangon Time)
     report_time = datetime.time(hour=2, minute=0, second=0, tzinfo=YANGON_TZ)
     application.job_queue.run_daily(send_daily_report, time=report_time)
 
-    # Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("pause", pause_command))
     application.add_handler(CommandHandler("unpause", unpause_command))
-    application.add_handler(CommandHandler("mycount", mycount)) # Added mycount handler
+    application.add_handler(CommandHandler("mycount", mycount))
+    application.add_handler(CommandHandler("allcounts", allcounts)) # Added Admin-only Handler
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_filter_handler))
     
     print("Bot is running...")
