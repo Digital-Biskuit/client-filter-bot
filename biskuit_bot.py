@@ -4,16 +4,17 @@ import datetime
 import pytz
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.constants import ParseMode # Added for stable formatting
 
 # --- CONFIGURATION ---
 TOKEN = '8287697686:AAHt-U9ZNzy_3oONuOgvJYj4zS0_nZZuMrA'
 BOT_STATE_KEY = 'is_active'
 REPORT_CHAT_ID = -1002283084705 
-ADMIN_HANDLE = "@DLTrainer_T389" # Fixed: Removed the backslash escape
+ADMIN_HANDLE = "@DLTrainer_T389" 
 YANGON_TZ = pytz.timezone('Asia/Yangon')
 
 # --- ADMIN SECURITY ---
-MY_ADMIN_ID = 6328052501 # Fixed: Only this ID can see all reports
+MY_ADMIN_ID = 6328052501 
 
 # Data Storage
 processed_links = set()
@@ -22,12 +23,11 @@ daily_stats = {}
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# [NOT_DEVELOP_COUNTRIES and NOT_ALLOWED_JOBS lists stay exactly as you had them]
 NOT_DEVELOP_COUNTRIES = {'AMERICA', 'AFRICA', 'Nepal', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cameroon', 'Central African Republic', 'Chad', 'Comoros', 'Democratic Republic of the Congo', 'Republic of the Congo', 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Ivory Coast', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe', 'Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Guyana', 'Paraguay', 'Peru', 'Suriname', 'Uruguay', 'Venezuela', 'Antigua and Barbuda', 'Bahamas', 'Barbados', 'Belize', 'Canada', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 'El Salvador', 'Grenada', 'Guatemala', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Trinidad and Tobago', 'United States', 'US', 'CAN', 'CANADA'}
 MIN_AGE, MAX_AGE = 25, 45
 MIN_SALARY = 300
 MAX_HOURS = 12
-NOT_ALLOWED_JOBS = {'CONTENT CREATOR', 'COMPUTER SCIENTIST', 'SOFTWARE ENGINEER', 'WEB DEVELOPER', 'DEVELOPER', 'DATA SCIENTIST', 'NETWORK MANAGEMENT', 'YOUTUBER', 'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE', 'POLICE', 'SOLDIER', 'CYBERSECURITY', 'NETWORK', 'SERVER', 'SYSTEM ADMIN'}
+NOT_ALLOWED_JOBS = {'CONTENT CREATOR', 'COMPUTER SCIENTIST', 'SOFTWARE ENGINEER', 'WEB DEVELOPER', 'DEVELOPER', 'DATA SCIENTIT', 'NETWORK MANAGEMENT', 'YOUTUBER', 'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE', 'POLICE', 'SOLDIER', 'CYBERSECURITY', 'NETWORK', 'SERVER', 'SYSTEM ADMIN'}
 
 def check_client_data(report_text):
     data = {}
@@ -72,7 +72,7 @@ def check_client_data(report_text):
             if salary < MIN_SALARY: 
                 errors.append(f"❌ Salary must be at least ${MIN_SALARY}. Less than {MIN_SALARY} not allowed. Please Check Sir {ADMIN_HANDLE}")
         except:
-            errors.append(f"❌ Invalid Salary format. Please provide a number or 'Not Telling'.")
+            errors.append(f"❌ Invalid Salary format.")
 
     hours_raw = data.get('Working Hours', '').upper()
     if 'NOT TELLING' not in hours_raw:
@@ -82,7 +82,7 @@ def check_client_data(report_text):
             if hours > MAX_HOURS: 
                 errors.append(f"❌ Working hours cannot exceed {MAX_HOURS}h. Please Check Sir {ADMIN_HANDLE}")
         except:
-            errors.append(f"❌ Invalid Working Hours. Please provide a number or 'Not Telling'.")
+            errors.append(f"❌ Invalid Working Hours.")
 
     job = data.get('Job', '').upper()
     if any(forbidden in job for forbidden in NOT_ALLOWED_JOBS):
@@ -96,7 +96,6 @@ def check_client_data(report_text):
 
 def update_stats(user, result, user_code):
     mention = f"@{user.username}" if user.username else user.first_name
-    mention = mention.replace("_", "\\_")
     
     if user_code not in daily_stats:
         daily_stats[user_code] = {"mention": mention, "passed": 0, "failed": 0}
@@ -109,56 +108,48 @@ def update_stats(user, result, user_code):
 async def mycount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     mention = f"@{user.username}" if user.username else user.first_name
-    mention = mention.replace("_", "\\_")
     
-    user_data = None
-    for code, data in daily_stats.items():
-        if data["mention"] == mention:
-            user_data = (code, data)
-            break
+    user_data = next((d for c, d in daily_stats.items() if d["mention"] == mention), None)
             
     if user_data:
-        code, data = user_data
         await update.message.reply_text(
-            f"📊 **Your Progress (Code: {code})**\n✅ Passed: {data['passed']}\n❌ Failed: {data['failed']}",
-            parse_mode='Markdown'
+            f"📊 <b>Your Progress</b>\n✅ Passed: {user_data['passed']}\n❌ Failed: {user_data['failed']}",
+            parse_mode=ParseMode.HTML
         )
     else:
         await update.message.reply_text("❌ No reports found for you today yet.")
 
 async def allcounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != MY_ADMIN_ID:
-        await update.message.reply_text("⛔ Access Denied. Only the Admin can view all counts.")
+        await update.message.reply_text("⛔ Access Denied.")
         return
-
     if not daily_stats:
         await update.message.reply_text("📊 No data recorded today yet.")
         return
 
-    report = "📊 **Live Summary (Admin View)**\n\n"
+    report = "📊 <b>Live Summary (Admin View)</b>\n\n"
     for code, data in daily_stats.items():
-        report += f"🔑 **Code: {code}** ({data['mention']})\n"
-        report += f"    ✅ Passed: {data['passed']} | ❌ Failed: {data['failed']}\n\n"
+        report += f"🔑 <b>Code: {code}</b> ({data['mention']})\n✅ Passed: {data['passed']} | ❌ Failed: {data['failed']}\n\n"
 
-    await update.message.reply_text(report, parse_mode='Markdown')
+    await update.message.reply_text(report, parse_mode=ParseMode.HTML)
 
 async def start(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("Bot is ACTIVE. Format စစ်ဆေးရန် အဆင်သင့်ဖြစ်ပါပြီ။")
+    await update.message.reply_text("Bot is ACTIVE.")
 
 async def pause_command(update: Update, context):
     if update.effective_user.id != MY_ADMIN_ID:
-        await update.message.reply_text("⛔ Only the Admin can pause the bot.")
+        await update.message.reply_text("⛔ Admin Only.")
         return
     context.bot_data[BOT_STATE_KEY] = False
-    await update.message.reply_text("⏸ Bot ခဏရပ်နားမည်.")
+    await update.message.reply_text("⏸ Bot Paused.")
 
 async def unpause_command(update: Update, context):
     if update.effective_user.id != MY_ADMIN_ID:
-        await update.message.reply_text("⛔ Only the Admin can unpause the bot.")
+        await update.message.reply_text("⛔ Admin Only.")
         return
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("▶ Bot ပြန်လည်လုပ်လုပ်နေပြီဖြစ်သည်")
+    await update.message.reply_text("▶ Bot Resumed.")
 
 async def client_filter_handler(update: Update, context):
     if not context.bot_data.get(BOT_STATE_KEY, True):
@@ -167,7 +158,11 @@ async def client_filter_handler(update: Update, context):
     result, remark, user_code = check_client_data(update.message.text)
     if result:
         update_stats(update.message.from_user, result, user_code)
-        await update.message.reply_text(f"--- SCAN RESULT ---\n\n**RESULT:** `{result}`\n\n{remark}", parse_mode='Markdown')
+        # Fixed: Using HTML mode stops the bot from crashing on links with underscores
+        await update.message.reply_text(
+            f"<b>--- SCAN RESULT ---</b>\n\n<b>RESULT:</b> {result}\n\n{remark}", 
+            parse_mode=ParseMode.HTML
+        )
 
 def main():
     application = Application.builder().token(TOKEN).build()
