@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
-TOKEN = '8287697686:AAGrq9d1R3YPW7Sag48jFA4T2iD7NZTzyJA'
+TOKEN = '8287697686:AAHt-U9ZNzy_3oONuOgvJYj4zS0_nZZuMrA'
 BOT_STATE_KEY = 'is_active'
 REPORT_CHAT_ID = -1002283084705 
 ADMIN_HANDLE = r"@DLTrainer\_T389"
@@ -208,5 +208,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
