@@ -1,33 +1,36 @@
 import logging
 import re
-import datetime
-import pytz
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from telegram.constants import ParseMode # Added for stable formatting
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 # --- CONFIGURATION ---
 TOKEN = '8287697686:AAHt-U9ZNzy_3oONuOgvJYj4zS0_nZZuMrA'
 BOT_STATE_KEY = 'is_active'
-REPORT_CHAT_ID = -1002283084705 
-ADMIN_HANDLE = "@DLTrainer_T389" 
-YANGON_TZ = pytz.timezone('Asia/Yangon')
 
-# --- ADMIN SECURITY ---
-MY_ADMIN_ID = 6328052501 
-
-# Data Storage
+# In-memory database to prevent duplicate links
 processed_links = set()
-daily_stats = {}
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-NOT_DEVELOP_COUNTRIES = {'AMERICA', 'AFRICA', 'Nepal', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cameroon', 'Central African Republic', 'Chad', 'Comoros', 'Democratic Republic of the Congo', 'Republic of the Congo', 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Ivory Coast', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe', 'Argentina', 'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Guyana', 'Paraguay', 'Peru', 'Suriname', 'Uruguay', 'Venezuela', 'Antigua and Barbuda', 'Bahamas', 'Barbados', 'Belize', 'Canada', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 'El Salvador', 'Grenada', 'Guatemala', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Trinidad and Tobago', 'United States', 'US', 'CAN', 'CANADA'}
+# --- BOT RULE SET ---
+NOT_DEVELOP_COUNTRIES = {'AMERICA', 'AFRICA', 'Nepal', 'MYANMAR', 'THAILAND', 'CAMBODIA', 'LAOS', 'CHINA', 'VIETNAM', 'USA', 'Algeria', 
+                         'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cameroon', 'Central African Republic', 
+                         'Chad', 'Comoros', 'Democratic Republic of the Congo', 'Republic of the Congo', 'Djibouti', 'Egypt', 'Equatorial Guinea', 
+                         'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Ivory Coast', 'Kenya', 
+                         'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 
+                         'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 
+                         'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe', 'Argentina', 
+                         'Bolivia', 'Brazil', 'Chile', 'Colombia', 'Ecuador', 'Guyana', 'Paraguay', 'Peru', 'Suriname', 'Uruguay', 'Venezuela', 
+                         'Antigua and Barbuda', 'Bahamas', 'Barbados', 'Belize', 'Canada', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 
+                         'El Salvador', 'Grenada', 'Guatemala', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Saint Kitts and Nevis', 
+                         'Saint Lucia', 'Saint Vincent and the Grenadines', 'Trinidad and Tobago', 'United States', 'US', 'CAN', 'CANADA'}
 MIN_AGE, MAX_AGE = 25, 45
 MIN_SALARY = 300
 MAX_HOURS = 12
-NOT_ALLOWED_JOBS = {'CONTENT CREATOR', 'COMPUTER SCIENTIST', 'SOFTWARE ENGINEER', 'WEB DEVELOPER', 'DEVELOPER', 'DATA SCIENTIT', 'NETWORK MANAGEMENT', 'YOUTUBER', 'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE', 'POLICE', 'SOLDIER', 'CYBERSECURITY', 'NETWORK', 'SERVER', 'SYSTEM ADMIN'}
+NOT_ALLOWED_JOBS = {'CONTENT CREATOR', 'COMPUTER SCIENTIST', 'SOFTWARE ENGINEER', 'WEB DEVELOPER', 'DEVELOPER', 'DATA SCIENTIST', 'NETWORK MANAGEMENT',
+                    'YOUTUBER', 'JOURNALIST', 'LAWYER', 'ATTORNEY', 'ADVOCATE', 'POLICE', 'SOLDIER', 'CYBERSECURITY', 'NETWORK', 'SERVER', 'SYSTEM ADMIN'}
+
 
 def check_client_data(report_text):
     data = {}
@@ -37,146 +40,104 @@ def check_client_data(report_text):
             parts = line.split('-', 1)
             data[parts[0].strip().title()] = parts[1].strip()
 
+    # STRICT FILTER: The bot ignores messages that don't match the approval format headers.
     required_keys = {'Location', 'Age', 'Job', 'Salary', 'Working Hours'}
     if not any(key in data for key in required_keys):
-        return None, None, "N/A"
+        return None, None
 
-    user_code = data.get('Code', 'UNKNOWN').upper()
     errors = []
 
+    # 1. Duplicate & Validity Check for Link
     link_keys = ['Client Account Link', 'Link', 'Client Link', 'Client Facebook Link', 'Client Tiktok Link', 'Client Instagram Link']
     link = next((data.get(k) for k in link_keys if data.get(k)), None)
     
     if not link or ('.' not in link):
-        errors.append(f"❌ Missing or invalid Client Link. Please Check Sir {ADMIN_HANDLE}")
+        errors.append("❌ Missing or invalid Client Link. Please Check Sir @DLTrainer\_T389")
     elif link in processed_links:
-        errors.append(f"❌ Duplicate Error: This link has already been checked. Please Check Sir {ADMIN_HANDLE}")
+        errors.append("❌ Duplicate Error: This link has already been checked. Please Check Sir @DLTrainer\_T389")
 
+    # 2. Location
     loc = data.get('Location', '').upper()
     if any(country in loc for country in NOT_DEVELOP_COUNTRIES):
-        errors.append(f"❌ Fails Location rule. Please Check Sir {ADMIN_HANDLE}")
+        errors.append("❌ Fails Location rule. Please Check Sir @DLTrainer\_T389")
 
+    # 3. Age
     try:
         age_match = re.search(r'\d+', data.get('Age', '0'))
         age = int(age_match.group()) if age_match else 0
         if not (MIN_AGE <= age <= MAX_AGE): 
-            errors.append(f"❌ Age must be {MIN_AGE}-{MAX_AGE}. Please Check Sir {ADMIN_HANDLE}")
+            errors.append(f"❌ Age must be {MIN_AGE}-{MAX_AGE}. Please Check Sir @DLmktp1\_T389")
     except:
-        errors.append(f"❌ Invalid Age format. Please Check Sir {ADMIN_HANDLE}")
+        errors.append("❌ Invalid Age format. Please Check Sir @DLTrainer\_T389")
 
+    # 4. Salary (With "Not Telling" Option)
     salary_raw = data.get('Salary', '').upper()
     if 'NOT TELLING' not in salary_raw:
         try:
             salary_match = re.search(r'\d+', salary_raw)
             salary = int(salary_match.group()) if salary_match else 0
             if salary < MIN_SALARY: 
-                errors.append(f"❌ Salary must be at least ${MIN_SALARY}. Less than {MIN_SALARY} not allowed. Please Check Sir {ADMIN_HANDLE}")
+                errors.append(f"❌ Salary must be at least ${MIN_SALARY}. Less than {MIN_SALARY} not allowed. Please Check Sir @DLTrainer\_T389")
         except:
-            errors.append(f"❌ Invalid Salary format.")
+            errors.append("❌ Invalid Salary format. Please provide a number or 'Not Telling'.")
 
+    # 5. Working Hours (With "Not Telling" Option)
     hours_raw = data.get('Working Hours', '').upper()
     if 'NOT TELLING' not in hours_raw:
         try:
             hours_match = re.search(r'\d+', hours_raw)
             hours = int(hours_match.group()) if hours_match else 0
             if hours > MAX_HOURS: 
-                errors.append(f"❌ Working hours cannot exceed {MAX_HOURS}h. Please Check Sir {ADMIN_HANDLE}")
+                errors.append(f"❌ Working hours cannot exceed {MAX_HOURS}h. Please Check Sir @DLTrainer\_T389")
         except:
-            errors.append(f"❌ Invalid Working Hours.")
+            errors.append("❌ Invalid Working Hours. Please provide a number or 'Not Telling'.")
 
+    # 6. Job
     job = data.get('Job', '').upper()
     if any(forbidden in job for forbidden in NOT_ALLOWED_JOBS):
-        errors.append(f"❌ Banned profession. Please Check Sir {ADMIN_HANDLE}")
+        errors.append("❌ Banned profession. Please Check Sir @DLTrainer\_T389")
 
     if not errors:
         processed_links.add(link)
-        return "Passed", "✅ All requirements met. Approved.", user_code
+        return "Passed", "✅ All requirements met. Approved."
 
-    return "Can't Cut", "⚠️ Reasons:\n" + "\n".join(errors), user_code
+    return "Can't Cut", "⚠️ Reasons:\n" + "\n".join(errors)
 
-def update_stats(user, result, user_code):
-    mention = f"@{user.username}" if user.username else user.first_name
-    
-    if user_code not in daily_stats:
-        daily_stats[user_code] = {"mention": mention, "passed": 0, "failed": 0}
-    
-    if result == "Passed":
-        daily_stats[user_code]["passed"] += 1
-    else:
-        daily_stats[user_code]["failed"] += 1
 
-async def mycount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    mention = f"@{user.username}" if user.username else user.first_name
-    
-    user_data = next((d for c, d in daily_stats.items() if d["mention"] == mention), None)
-            
-    if user_data:
-        await update.message.reply_text(
-            f"📊 <b>Your Progress</b>\n✅ Passed: {user_data['passed']}\n❌ Failed: {user_data['failed']}",
-            parse_mode=ParseMode.HTML
-        )
-    else:
-        await update.message.reply_text("❌ No reports found for you today yet.")
-
-async def allcounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != MY_ADMIN_ID:
-        await update.message.reply_text("⛔ Access Denied.")
-        return
-    if not daily_stats:
-        await update.message.reply_text("📊 No data recorded today yet.")
-        return
-
-    report = "📊 <b>Live Summary (Admin View)</b>\n\n"
-    for code, data in daily_stats.items():
-        report += f"🔑 <b>Code: {code}</b> ({data['mention']})\n✅ Passed: {data['passed']} | ❌ Failed: {data['failed']}\n\n"
-
-    await update.message.reply_text(report, parse_mode=ParseMode.HTML)
-
+# --- COMMANDS ---
 async def start(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("Bot is ACTIVE.")
+    await update.message.reply_text("Bot is ACTIVE. Format စစ်ဆေးရန် အဆင်သင့်ဖြစ်ပါပြီ။")
 
 async def pause_command(update: Update, context):
-    if update.effective_user.id != MY_ADMIN_ID:
-        await update.message.reply_text("⛔ Admin Only.")
-        return
     context.bot_data[BOT_STATE_KEY] = False
-    await update.message.reply_text("⏸ Bot Paused.")
+    await update.message.reply_text("⏸ Bot ခဏရပ်နားမည်.")
 
 async def unpause_command(update: Update, context):
-    if update.effective_user.id != MY_ADMIN_ID:
-        await update.message.reply_text("⛔ Admin Only.")
-        return
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("▶ Bot Resumed.")
+    await update.message.reply_text("▶ Bot ပြန်လည်လုပ်လုပ်နေပြီဖြစ်သည်.")
 
 async def client_filter_handler(update: Update, context):
     if not context.bot_data.get(BOT_STATE_KEY, True):
         return
 
-    result, remark, user_code = check_client_data(update.message.text)
+    result, remark = check_client_data(update.message.text)
     if result:
-        update_stats(update.message.from_user, result, user_code)
-        # Fixed: Using HTML mode stops the bot from crashing on links with underscores
-        await update.message.reply_text(
-            f"<b>--- SCAN RESULT ---</b>\n\n<b>RESULT:</b> {result}\n\n{remark}", 
-            parse_mode=ParseMode.HTML
-        )
+        await update.message.reply_text(f"--- SCAN RESULT ---\n\n**RESULT:** `{result}`\n\n{remark}", parse_mode='Markdown')
 
 def main():
     application = Application.builder().token(TOKEN).build()
     application.bot_data[BOT_STATE_KEY] = True
-
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("pause", pause_command))
     application.add_handler(CommandHandler("unpause", unpause_command))
-    application.add_handler(CommandHandler("mycount", mycount))
-    application.add_handler(CommandHandler("allcounts", allcounts))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_filter_handler))
-    
     print("Bot is running...")
     application.run_polling()
 
 if __name__ == '__main__':
     main()
+
+
+
+
