@@ -9,11 +9,12 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 TOKEN = '8287697686:AAHt-U9ZNzy_3oONuOgvJYj4zS0_nZZuMrA'
 BOT_STATE_KEY = 'is_active'
 REPORT_CHAT_ID = -1002283084705 
-ADMIN_HANDLE = r"@DLTrainer\_T389"
+# Fixed: Removed the backslash from the string itself to prevent Python errors
+ADMIN_HANDLE = "@DLTrainer_T389"
 YANGON_TZ = pytz.timezone('Asia/Yangon')
 
 # --- ADMIN SECURITY ---
-MY_ADMIN_ID = 6328052501  # Fixed: Only this ID can see all reports
+MY_ADMIN_ID = 6328052501 
 
 # Data Storage
 processed_links = set()
@@ -106,7 +107,6 @@ def update_stats(user, result, user_code):
     else:
         daily_stats[user_code]["failed"] += 1
 
-# --- COMMAND: MYCOUNT ---
 async def mycount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     mention = f"@{user.username}" if user.username else user.first_name
@@ -127,7 +127,6 @@ async def mycount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ No reports found for you today yet.")
 
-# --- NEW COMMAND: ALLCOUNTS (ADMIN ONLY) ---
 async def allcounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != MY_ADMIN_ID:
         await update.message.reply_text("⛔ Access Denied. Only the Admin can view all counts.")
@@ -191,16 +190,22 @@ async def client_filter_handler(update: Update, context):
 
 def main():
     application = Application.builder().token(TOKEN).build()
-    application.bot_data[BOT_STATE_KEY] = True
     
-    report_time = datetime.time(hour=2, minute=0, second=0, tzinfo=YANGON_TZ)
-    application.job_queue.run_daily(send_daily_report, time=report_time)
+    # Fixed: Force Active status immediately on boot so you don't have to type /start
+    application.bot_data[BOT_STATE_KEY] = True 
+    
+    # Fixed: Added an IF check to prevent crashing if JobQueue isn't installed
+    if application.job_queue:
+        report_time = datetime.time(hour=2, minute=0, second=0, tzinfo=YANGON_TZ)
+        application.job_queue.run_daily(send_daily_report, time=report_time)
+    else:
+        logger.error("JobQueue is not available. Please fix requirements.txt.")
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("pause", pause_command))
     application.add_handler(CommandHandler("unpause", unpause_command))
     application.add_handler(CommandHandler("mycount", mycount))
-    application.add_handler(CommandHandler("allcounts", allcounts)) # Added Admin-only Handler
+    application.add_handler(CommandHandler("allcounts", allcounts))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_filter_handler))
     
     print("Bot is running...")
@@ -208,6 +213,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
