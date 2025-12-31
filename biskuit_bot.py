@@ -10,7 +10,7 @@ from telegram.constants import ParseMode # Added for better stability
 TOKEN = '8287697686:AAHt-U9ZNzy_3oONuOgvJYj4zS0_nZZuMrA'
 BOT_STATE_KEY = 'is_active'
 ADMIN_HANDLE = "@DLTrainer_T389"
-MY_ADMIN_ID = 6328052501 
+MY_ADMIN_ID = 6328052501
 YANGON_TZ = pytz.timezone('Asia/Yangon')
 
 # Persistent Memory
@@ -125,9 +125,13 @@ async def client_filter_handler(update: Update, context):
             f"<b>--- SCAN RESULT ---</b>\n\n<b>RESULT:</b> <code>{result}</code>\n\n{remark}", 
             parse_mode=ParseMode.HTML
         )
+from telegram.request import HTTPXRequest
 
 def main():
-    application = Application.builder().token(TOKEN).build()
+    # Adding a 30-second timeout prevents the "Stopping Container" crash during startup
+    t_request = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
+    
+    application = Application.builder().token(TOKEN).request(t_request).build()
     application.bot_data[BOT_STATE_KEY] = True
 
     application.add_handler(CommandHandler("start", start))
@@ -137,7 +141,9 @@ def main():
     application.add_handler(CommandHandler("allcounts", allcounts))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, client_filter_handler))
     
+    print("Bot is starting successfully...")
     application.run_polling()
 
 if __name__ == '__main__':
     main()
+
