@@ -101,17 +101,17 @@ async def allcounts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- COMMANDS ---
 async def start(update: Update, context):
     context.bot_data[BOT_STATE_KEY] = True
-    await update.message.reply_text("Bot is ACTIVE. Yangon Time initialized.")
+    await update.message.reply_text("Bot is ACTIVE. Format များစစ်ဆေးရန် အသင့်ဖြစ်ပါပြီ။")
 
-async def stop_command(update: Update, context):
+async def pause_command(update: Update, context):
     if update.effective_user.id == MY_ADMIN_ID:
         context.bot_data[BOT_STATE_KEY] = False
-        await update.message.reply_text("⛔ကျွုန်ုပ်တာဝန်ပြီးဆုံးပါပြီ။\n အားလုံးနဲ့အတူအလုပ်လုပ်တွဲလုပ်ခွင့်ရတဲ့အတွက်ဝမ်းသာပါတယ်။\n အားလုံးပဲ ပိုက်ဆံများများရှာနိုင်ပါစေလို့လည်း ဆုတောင်းပေးလိုက်ပါတယ်။\n\n Creator အသက်ပြန်သွင်းတဲ့အခါကြ ပြန်ဆုံချင်ပါသေးတယ်။")
+        await update.message.reply_text("⏸️ Bot Pause")
 
 async def unpause_command(update: Update, context):
     if update.effective_user.id == MY_ADMIN_ID:
         context.bot_data[BOT_STATE_KEY] = True
-        await update.message.reply_text("▶ Bot Resumed.")
+        await update.message.reply_text("▶️ Bot Resumed.")
 
 async def client_filter_handler(update: Update, context):
     if not context.bot_data.get(BOT_STATE_KEY, True):
@@ -135,7 +135,7 @@ def main():
     application.bot_data[BOT_STATE_KEY] = True
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("stop", stop_command))
+    application.add_handler(CommandHandler("pause", pause_command))
     application.add_handler(CommandHandler("unpause", unpause_command))
     application.add_handler(CommandHandler("mycount", mycount))
     application.add_handler(CommandHandler("allcounts", allcounts))
@@ -146,6 +146,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
