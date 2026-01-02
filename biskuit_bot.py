@@ -106,7 +106,7 @@ async def start(update: Update, context):
 async def stop_command(update: Update, context):
     if update.effective_user.id == MY_ADMIN_ID:
         context.bot_data[BOT_STATE_KEY] = False
-        await update.message.reply_text("⛔ကျွုန်ုပ်တာဝန်ပြီးဆုံးပါပြီ၊ အားလုံးနဲ့အတူအလုပ်လုပ်တွဲလုပ်ခွင့်ရတဲ့အတွက်ဝမ်းသာပါတယ်။\n အားလုံးပဲ ပိုက်ဆံများများရှာနိုင်ပါစေလို့လည်း ဆုတောင်းပေးလိုက်ပါတယ်။\n\n Creator အသက်ပြန်သွင်းတဲ့အခါကြ ပြန်ဆုံချင်ပါသေးတယ်။")
+        await update.message.reply_text("⛔ကျွုန်ုပ်တာဝန်ပြီးဆုံးပါပြီ။\n အားလုံးနဲ့အတူအလုပ်လုပ်တွဲလုပ်ခွင့်ရတဲ့အတွက်ဝမ်းသာပါတယ်။\n အားလုံးပဲ ပိုက်ဆံများများရှာနိုင်ပါစေလို့လည်း ဆုတောင်းပေးလိုက်ပါတယ်။\n\n Creator အသက်ပြန်သွင်းတဲ့အခါကြ ပြန်ဆုံချင်ပါသေးတယ်။")
 
 async def unpause_command(update: Update, context):
     if update.effective_user.id == MY_ADMIN_ID:
@@ -146,5 +146,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
